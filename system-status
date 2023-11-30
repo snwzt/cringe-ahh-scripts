@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+# get system status on terminal
+
+while true; do
+    # Get CPU temperature
+    temperature=$(awk '{print $2 "°C"}' /proc/acpi/ibm/thermal)
+
+    # Get memory usage
+    memory=$(free -h | awk '/^Mem:/ {print $3 " | " $4}')
+
+    # Get fan speed
+    fan_speed=$(cat /proc/acpi/ibm/fan | awk '/^speed:/ {print $2 " RPM"}')
+
+    # Get network usage
+    network_usage=$(awk '/wlp3s0/ {i++; rx[i]=$2; tx[i]=$10}; END{print rx[2]-rx[1] " KB/s " tx[2]-tx[1] " KB/s"}' <(cat /proc/net/dev; sleep 1; cat /proc/net/dev))
+
+    # Print information
+    echo "Temperature: $temperature"
+    echo "Memory: $memory"
+    echo "Fan Speed: $fan_speed"
+    echo "Network Usage: $network_usage"
+    echo "-----------------"
+
+    sleep 1
+done
