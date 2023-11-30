@@ -3,6 +3,7 @@
 import re
 import requests
 import random
+import sys
 from concurrent.futures import ThreadPoolExecutor
 
 PATTERN = r'https://www\.youtube\.com/watch\?v=([a-zA-Z0-9._]{11})'
@@ -15,8 +16,7 @@ API = ["https://invidious.projectsegfau.lt/api/v1/videos/{}",
     "https://invidious.nerdvpn.de/api/v1/videos/{}",
     "https://inv.in.projectsegfau.lt/api/v1/videos/{}", 
     "https://invidious.io.lol/api/v1/videos/{}", 
-    "https://inv.tux.pizza/api/v1/videos/{}",
-    "https://inv.zzls.xyz/api/v1/videos/{}"]
+    "https://inv.tux.pizza/api/v1/videos/{}"]
 
 def get_video_info(video_id):
     api_url = API[random.randrange(0, len(API))].format(video_id)
@@ -25,8 +25,12 @@ def get_video_info(video_id):
         video_info = response.json()
         author = video_info["author"]
         return author
+    
+if len(sys.argv) < 2:
+    print("Please provide the file path as a command-line argument.")
+    sys.exit(1)
 
-with open('watch-history.html', 'r', encoding='utf-8') as file:
+with open(sys.argv[1], 'r', encoding='utf-8') as file:
     content = file.read()
 
 matches = re.findall(PATTERN, content)
