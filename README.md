@@ -1,5 +1,4 @@
-# cringe-ahh-scripts
-totally not cringe
+# scripts I wrote
 
-- system-status will work only on linux
-- use youtube-watched like this: `python youtube-watched <path to file>`
+1. system-status: shows system status of my laptop.
+2. youtube-watched: takes youtube history file as input and lists your most watched content creator.

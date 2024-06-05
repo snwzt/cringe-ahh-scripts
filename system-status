@@ -1,26 +1,211 @@
 #!/usr/bin/env bash
 
-# get system status on terminal
+# CPU
+prev_total_cpu_time=0
+prev_idle_cpu_time=0
 
-while true; do
-    # Get CPU temperature
-    temperature=$(awk '{print $2 "°C"}' /proc/acpi/ibm/thermal)
+get_cpu_usage() {
+    cpu_info=($(grep '^cpu ' /proc/stat))
+    
+    # normal user mode process, niced user mode process, kernel mode process, idle waiting
+    total_cpu_time=$((${cpu_info[1]} + ${cpu_info[2]} + ${cpu_info[3]} + ${cpu_info[4]}))
+    
+    idle_cpu_time=${cpu_info[4]}
+    
+    if [ $prev_total_cpu_time -ne 0 ] && [ $prev_idle_cpu_time -ne 0 ]; then
+        cpu_usage=$((100 - (100 * ($idle_cpu_time - $prev_idle_cpu_time) / ($total_cpu_time - $prev_total_cpu_time))))
+        echo "CPU Usage: $cpu_usage%"
+    fi
+    
+    prev_total_cpu_time=$total_cpu_time
+    prev_idle_cpu_time=$idle_cpu_time
+}
 
-    # Get memory usage
-    memory=$(free -h | awk '/^Mem:/ {print $3 " | " $4}')
+# CPU Temp
+get_cpu_temp() {
+    if lsmod | grep -q thinkpad_acpi; then
+        cpu_temp=$(cat /proc/acpi/ibm/thermal | grep 'temperatures' | awk '{print $2 " C"}')
+        echo "CPU Temp: $cpu_temp"
+    else
+        echo "CPU Temp: NA, thinkpad_acpi module not loaded"
+    fi
+}
 
-    # Get fan speed
-    fan_speed=$(cat /proc/acpi/ibm/fan | awk '/^speed:/ {print $2 " RPM"}')
+# CPU Fan
+get_fan_speed() {
+    if lsmod | grep -q thinkpad_acpi; then
+        fan_speed=$(cat /proc/acpi/ibm/fan | awk '/^speed/ {print $2 " RPM"}')
+        echo "Fan Speed: $fan_speed"
+    else
+        echo "Fan Speed: NA, thinkpad_acpi module not loaded"
+    fi
+}
 
-    # Get network usage
-    network_usage=$(awk '/wlp3s0/ {i++; rx[i]=$2; tx[i]=$10}; END{print rx[2]-rx[1] " KB/s " tx[2]-tx[1] " KB/s"}' <(cat /proc/net/dev; sleep 1; cat /proc/net/dev))
+# Memory
+get_mem_usage() {
+    mem_total=$(grep '^MemTotal:' /proc/meminfo | awk '{print $2}')
+    mem_free=$(grep '^MemAvailable:' /proc/meminfo | awk '{print $2}')
+    
+    mem_total_mb=$((mem_total / 1024))
+    mem_used_mb=$(( (mem_total - mem_free) / 1024 ))
+    
+    echo "Memory Used: $mem_used_mb MB / $mem_total_mb MB"
+}
 
-    # Print information
-    echo "Temperature: $temperature"
-    echo "Memory: $memory"
-    echo "Fan Speed: $fan_speed"
-    echo "Network Usage: $network_usage"
-    echo "-----------------"
+# Swap
+get_swap_usage() {
+    swap_total=$(grep '^SwapTotal:' /proc/meminfo | awk '{print $2}')
+    swap_free=$(grep '^SwapFree:' /proc/meminfo | awk '{print $2}')
+    
+    swap_total_mb=$((swap_total / 1024))
+    swap_used_mb=$(( (swap_total - swap_free) / 1024 ))
+    
+    echo "Swap Used: $swap_used_mb MB / $swap_total_mb MB"
+}
 
-    sleep 1
-done
+# Ethernet
+prev_rx_bytes_eth=$(cat /sys/class/net/enp2s0/statistics/rx_bytes)
+prev_tx_bytes_eth=$(cat /sys/class/net/enp2s0/statistics/tx_bytes)
+
+get_ethernet_stats() {
+    rx_bytes_eth=$(cat /sys/class/net/enp2s0/statistics/rx_bytes)
+    tx_bytes_eth=$(cat /sys/class/net/enp2s0/statistics/tx_bytes)
+    
+    diff_rx=$((rx_bytes_eth - prev_rx_bytes_eth))
+    diff_tx=$((tx_bytes_eth - prev_tx_bytes_eth))
+    
+    prev_rx_bytes_eth=$rx_bytes_eth
+    prev_tx_bytes_eth=$tx_bytes_eth
+    
+    if [[ $diff_rx -gt 1000000 ]]; then
+        rx_speed=$((diff_rx / 1000000))
+        rx_unit="Mbps"
+    else
+        rx_speed=$((diff_rx / 1000))
+        rx_unit="Kbps"
+    fi
+    
+    if [[ $diff_tx -gt 1000000 ]]; then
+        tx_speed=$((diff_tx / 1000000))
+        tx_unit="Mbps"
+    else
+        tx_speed=$((diff_tx / 1000))
+        tx_unit="Kbps"
+    fi
+    
+    echo "Up: $tx_speed $tx_unit | Down: $rx_speed $rx_unit"
+}
+
+# WiFi
+prev_rx_bytes_wifi=$(cat /sys/class/net/wlp3s0/statistics/rx_bytes)
+prev_tx_bytes_wifi=$(cat /sys/class/net/wlp3s0/statistics/tx_bytes)
+
+get_wifi_stats() {
+    rx_bytes_wifi=$(cat /sys/class/net/wlp3s0/statistics/rx_bytes)
+    tx_bytes_wifi=$(cat /sys/class/net/wlp3s0/statistics/tx_bytes)
+    
+    diff_rx=$((rx_bytes_wifi - prev_rx_bytes_wifi))
+    diff_tx=$((tx_bytes_wifi - prev_tx_bytes_wifi))
+    
+    prev_rx_bytes_wifi=$rx_bytes_wifi
+    prev_tx_bytes_wifi=$tx_bytes_wifi
+    
+    if [[ $diff_rx -gt 1000000 ]]; then
+        rx_speed=$((diff_rx / 1000000))
+        rx_unit="Mbps"
+    else
+        rx_speed=$((diff_rx / 1000))
+        rx_unit="Kbps"
+    fi
+    
+    if [[ $diff_tx -gt 1000000 ]]; then
+        tx_speed=$((diff_tx / 1000000))
+        tx_unit="Mbps"
+    else
+        tx_speed=$((diff_tx / 1000))
+        tx_unit="Kbps"
+    fi
+    
+    echo "Up: $tx_speed $tx_unit | Down: $rx_speed $rx_unit"
+}
+
+# Usage
+usage() {
+    echo "Usage: system-status [option]"
+    echo "Options:"
+    echo "  cpu       Display CPU usage"
+    echo "  temp      Display CPU temperature"
+    echo "  fan       Display CPU fan speed"
+    echo "  mem       Display Memory usage"
+    echo "  swap      Display Swap usage"
+    echo "  eth       Display Ethernet usage"
+    echo "  wifi      Display Wifi usage"
+    echo "  all       Display all information"
+}
+
+# Main
+if [ $# -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+case $1 in
+    cpu)
+        while true; do
+            get_cpu_usage
+            sleep 1
+        done
+    ;;
+    temp)
+        while true; do
+            get_cpu_temp
+            sleep 1
+        done
+    ;;
+    fan)
+        while true; do
+            get_fan_speed
+            sleep 1
+        done
+    ;;
+    mem)
+        while true; do
+            get_mem_usage
+            sleep 1
+        done
+    ;;
+    swap)
+        while true; do
+            get_swap_usage
+            sleep 1
+        done
+    ;;
+    eth)
+        while true; do
+            get_ethernet_stats
+            sleep 1
+        done
+    ;;
+    wifi)
+        while true; do
+            get_wifi_stats
+            sleep 1
+        done
+    ;;
+    all)
+        while true; do
+            get_cpu_usage
+            get_cpu_temp
+            get_fan_speed
+            get_mem_usage
+            get_swap_usage
+            get_ethernet_stats
+            get_wifi_stats
+            echo "---"
+            sleep 1
+        done
+    ;;
+    *)
+        usage
+    ;;
+esac
