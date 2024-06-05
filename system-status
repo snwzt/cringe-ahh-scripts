@@ -14,7 +14,7 @@ get_cpu_usage() {
     
     if [ $prev_total_cpu_time -ne 0 ] && [ $prev_idle_cpu_time -ne 0 ]; then
         cpu_usage=$((100 - (100 * ($idle_cpu_time - $prev_idle_cpu_time) / ($total_cpu_time - $prev_total_cpu_time))))
-        echo "CPU Usage: $cpu_usage"
+        echo "CPU Usage: $cpu_usage%"
     fi
     
     prev_total_cpu_time=$total_cpu_time
